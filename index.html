@@ -345,6 +345,56 @@
       box-shadow: 0 0 0 3px rgba(44,36,32,0.12);
     }
 
+    /* ─── Position Controls Grid ────────────────────────────── */
+    .position-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .position-group {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .position-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .position-label .axis-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      background: var(--accent);
+      color: white;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .position-value {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      min-width: 28px;
+      text-align: center;
+    }
+
+    .pos-slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     /* ─── Slider ────────────────────────────────────────────── */
     .slider-wrapper {
       display: flex;
@@ -352,7 +402,8 @@
       gap: 12px;
     }
 
-    .slider-wrapper input[type="range"] {
+    .slider-wrapper input[type="range"],
+    .pos-slider-row input[type="range"] {
       flex: 1;
       -webkit-appearance: none;
       appearance: none;
@@ -363,7 +414,8 @@
       cursor: pointer;
     }
 
-    .slider-wrapper input[type="range"]::-webkit-slider-thumb {
+    .slider-wrapper input[type="range"]::-webkit-slider-thumb,
+    .pos-slider-row input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
       appearance: none;
       width: 18px;
@@ -374,7 +426,8 @@
       transition: transform var(--transition);
     }
 
-    .slider-wrapper input[type="range"]::-webkit-slider-thumb:hover {
+    .slider-wrapper input[type="range"]::-webkit-slider-thumb:hover,
+    .pos-slider-row input[type="range"]::-webkit-slider-thumb:hover {
       transform: scale(1.2);
     }
 
@@ -489,7 +542,7 @@
     <section class="preview-panel">
       <p class="panel-label">كيف ستبدو؟</p>
       <div class="canvas-wrapper">
-        <canvas id="previewCanvas" width="1080" height="1920"></canvas>
+        <canvas id="previewCanvas" width="1080" height="1080"></canvas>
       </div>
     </section>
 
@@ -515,6 +568,36 @@
             maxlength="40"
             placeholder="اكتب الاسم هنا.."
           />
+        </div>
+      </div>
+
+      <!-- Text Position Controls -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span> موضع الاسم على البطاقة</div>
+        <div class="position-grid">
+
+          <!-- Vertical (Y) -->
+          <div class="position-group">
+            <div class="position-label">
+              <span class="axis-badge">↕</span> الارتفاع
+            </div>
+            <div class="pos-slider-row">
+              <input type="range" id="posYSlider" class="pos-slider" min="0" max="100" value="67" step="1" />
+              <span class="position-value" id="posYLabel">67%</span>
+            </div>
+          </div>
+
+          <!-- Horizontal (X) -->
+          <div class="position-group">
+            <div class="position-label">
+              <span class="axis-badge">↔</span> الجانب
+            </div>
+            <div class="pos-slider-row">
+              <input type="range" id="posXSlider" class="pos-slider" min="0" max="100" value="50" step="1" />
+              <span class="position-value" id="posXLabel">50%</span>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -665,8 +748,16 @@
     let activeColor    = COLOR_SWATCHES[0].color;
     let loadedImages   = [];   // cached HTMLImageElement per template
 
-    const canvas   = document.getElementById('previewCanvas');
-    const ctx      = canvas.getContext('2d');
+    // Natural dimensions of each loaded image (used for export size)
+    let imageNaturalSize = {};  // { [templateIndex]: { w, h } }
+
+    // Text position offsets (0–100% of canvas width/height)
+    // These start at 50% x, 67% y — user-adjustable via sliders
+    let textPosX = 50;   // percent of canvas width
+    let textPosY = 67;   // percent of canvas height
+
+    const canvas = document.getElementById('previewCanvas');
+    const ctx    = canvas.getContext('2d');
 
     /* ══════════════════════════════════════════════════════════
        ██  SVG ICONS FOR TEMPLATE PLACEHOLDERS
@@ -807,7 +898,7 @@
     }
 
     /* ══════════════════════════════════════════════════════════
-       ██  LOAD IMAGES (with caching)
+       ██  LOAD IMAGES (with caching + canvas resize)
     ══════════════════════════════════════════════════════════ */
     function loadTemplateImage(index) {
       return new Promise(resolve => {
@@ -816,36 +907,54 @@
         if (!url) { resolve(null); return; }
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        img.onload  = () => { loadedImages[index] = img; resolve(img); };
+        img.onload = () => {
+          loadedImages[index] = img;
+          // Store natural dimensions for this template
+          imageNaturalSize[index] = { w: img.naturalWidth, h: img.naturalHeight };
+          resolve(img);
+        };
         img.onerror = () => resolve(null);
         img.src = url;
       });
+    }
+
+    /* ── Resize canvas to match the active image's natural size ── */
+    function resizeCanvasToImage(index) {
+      const size = imageNaturalSize[index];
+      if (size) {
+        canvas.width  = size.w;
+        canvas.height = size.h;
+      } else {
+        // Fallback: square 1080 when no image is loaded yet
+        canvas.width  = 1080;
+        canvas.height = 1080;
+      }
     }
 
     /* ══════════════════════════════════════════════════════════
        ██  RENDER CANVAS
     ══════════════════════════════════════════════════════════ */
     async function render() {
-      const W = canvas.width;
-      const H = canvas.height;
-      const tpl = TEMPLATES[activeTemplate];
+      const tpl  = TEMPLATES[activeTemplate];
       const name = document.getElementById('nameInput').value;
       const font = document.getElementById('fontSelect').value;
       const size = parseInt(document.getElementById('fontSizeSlider').value, 10);
 
-      ctx.clearRect(0, 0, W, H);
-
-      // 1 — Background
+      // 1 — Load image first (so we know its natural size)
       const img = await loadTemplateImage(activeTemplate);
 
+      // 2 — Resize canvas to match uploaded image dimensions (or 1080 fallback)
+      resizeCanvasToImage(activeTemplate);
+
+      const W = canvas.width;
+      const H = canvas.height;
+
+      ctx.clearRect(0, 0, W, H);
+
+      // 3 — Draw background
       if (img) {
-        // Draw real image, cover-fit
-        const scale = Math.max(W / img.width, H / img.height);
-        const sw = img.width  * scale;
-        const sh = img.height * scale;
-        const sx = (W - sw) / 2;
-        const sy = (H - sh) / 2;
-        ctx.drawImage(img, sx, sy, sw, sh);
+        // Draw at exact 1:1 — canvas is already the image's native size
+        ctx.drawImage(img, 0, 0, W, H);
       } else {
         // Draw placeholder gradient
         const grad = ctx.createLinearGradient(0, 0, W, H);
@@ -854,37 +963,40 @@
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, W, H);
 
-        // Placeholder emoji & instruction
+        // Placeholder instruction text
         ctx.save();
-        ctx.font         = `300 32px 'Readex Pro', sans-serif`;
+        ctx.font         = `300 ${Math.round(W * 0.03)}px 'Readex Pro', sans-serif`;
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
         ctx.globalAlpha  = 0.6;
         ctx.fillStyle    = '#ffffff';
-        ctx.fillText('أضف رابط الصورة في الكود', W / 2, H / 2 + 48);
+        ctx.fillText('أضف رابط الصورة في الكود', W / 2, H / 2 + H * 0.05);
         ctx.restore();
       }
 
-      // 2 — Text overlay (only if name entered)
+      // 4 — Text overlay (only if name entered)
       if (name.trim()) {
-        const { x, y, maxWidth } = tpl.textConfig;
+        // Convert slider percentages to canvas pixel coordinates
+        const textX    = W * (textPosX / 100);
+        const textY    = H * (textPosY / 100);
+        // Scale maxWidth proportionally (85% of canvas width)
+        const maxWidth = W * 0.85;
+        // Scale font size proportionally to canvas size (base is 1080px)
+        const scaledSize = Math.round(size * (W / 1080));
 
-        // Soft shadow for legibility
         ctx.save();
         ctx.shadowColor   = 'rgba(0,0,0,0.35)';
-        ctx.shadowBlur    = 24;
+        ctx.shadowBlur    = Math.round(W * 0.022);
         ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 4;
+        ctx.shadowOffsetY = Math.round(W * 0.004);
 
-        ctx.font         = `600 ${size}px ${font}`;
+        ctx.font         = `600 ${scaledSize}px ${font}`;
         ctx.fillStyle    = activeColor;
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
         ctx.direction    = 'rtl';
 
-        // Simple word-wrap
-        drawWrappedText(ctx, name, x, y, maxWidth, size * 1.35);
-
+        drawWrappedText(ctx, name, textX, textY, maxWidth, scaledSize * 1.35);
         ctx.restore();
       }
     }
@@ -915,42 +1027,66 @@
     }
 
     /* ══════════════════════════════════════════════════════════
-       ██  DOWNLOAD
-    ══════════════════════════════════════════════════════════ */
-  /* ══════════════════════════════════════════════════════════
-       ██  DOWNLOAD
+       ██  DOWNLOAD — exports at the image's native resolution
     ══════════════════════════════════════════════════════════ */
     document.getElementById('downloadBtn').addEventListener('click', () => {
       render().then(() => {
         const link = document.createElement('a');
         link.download = 'eid-greeting-card.png';
-        // سيتم تحميل الصورة بأبعاد 1080x1920 كما في الـ Canvas
         link.href = canvas.toDataURL('image/png');
         link.click();
         showToast();
       });
     });
+
+    function showToast() {
+      const t = document.getElementById('toast');
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3200);
+    }
+
     /* ══════════════════════════════════════════════════════════
-       ██  SLIDER FILL UPDATE
+       ██  SLIDER FILL UPDATE (font size + position sliders)
     ══════════════════════════════════════════════════════════ */
     const slider    = document.getElementById('fontSizeSlider');
     const sizeLabel = document.getElementById('sizeLabel');
 
-    function updateSliderFill() {
-      const min = slider.min, max = slider.max, val = slider.value;
+    function updateSliderFill(el) {
+      const min = el.min, max = el.max, val = el.value;
       const pct = ((val - min) / (max - min) * 100).toFixed(1) + '%';
-      slider.style.setProperty('--fill', pct);
-      sizeLabel.textContent = val;
+      el.style.setProperty('--fill', pct);
     }
 
-    slider.addEventListener('input', () => { updateSliderFill(); render(); });
-    updateSliderFill();
+    function updateSliderFills() {
+      updateSliderFill(slider);
+      sizeLabel.textContent = slider.value;
+      const posX = document.getElementById('posXSlider');
+      const posY = document.getElementById('posYSlider');
+      updateSliderFill(posX);
+      updateSliderFill(posY);
+      document.getElementById('posXLabel').textContent = posX.value + '%';
+      document.getElementById('posYLabel').textContent = posY.value + '%';
+    }
+
+    slider.addEventListener('input', () => { updateSliderFills(); render(); });
 
     /* ══════════════════════════════════════════════════════════
        ██  LIVE UPDATE LISTENERS
     ══════════════════════════════════════════════════════════ */
     document.getElementById('nameInput').addEventListener('input',  render);
     document.getElementById('fontSelect').addEventListener('change', render);
+
+    document.getElementById('posXSlider').addEventListener('input', e => {
+      textPosX = parseInt(e.target.value, 10);
+      updateSliderFills();
+      render();
+    });
+
+    document.getElementById('posYSlider').addEventListener('input', e => {
+      textPosY = parseInt(e.target.value, 10);
+      updateSliderFills();
+      render();
+    });
 
     /* ══════════════════════════════════════════════════════════
        ██  EXTRA FONT LOADING (for canvas)
@@ -979,6 +1115,7 @@
     (async () => {
       buildGallery();
       buildColorRow();
+      updateSliderFills();
       await loadExtraFonts();
       await render();
     })();
