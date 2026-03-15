@@ -917,23 +917,19 @@
     /* ══════════════════════════════════════════════════════════
        ██  DOWNLOAD
     ══════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════
+       ██  DOWNLOAD
+    ══════════════════════════════════════════════════════════ */
     document.getElementById('downloadBtn').addEventListener('click', () => {
-      // Re-render at full 1080×1080 resolution first
       render().then(() => {
         const link = document.createElement('a');
         link.download = 'eid-greeting-card.png';
+        // سيتم تحميل الصورة بأبعاد 1080x1920 كما في الـ Canvas
         link.href = canvas.toDataURL('image/png');
         link.click();
         showToast();
       });
     });
-
-    function showToast() {
-      const t = document.getElementById('toast');
-      t.classList.add('show');
-      setTimeout(() => t.classList.remove('show'), 3200);
-    }
-
     /* ══════════════════════════════════════════════════════════
        ██  SLIDER FILL UPDATE
     ══════════════════════════════════════════════════════════ */
